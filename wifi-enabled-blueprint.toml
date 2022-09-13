@@ -1,0 +1,10 @@
+name = "wifi-enabled"
+description = "Wireless enabled RHCOS"
+version = "0.0.1"
+modules = []
+groups = []
+distro = ""
+
+[[packages]]
+name = "NetworkManager-wifi"
+version = "*"
