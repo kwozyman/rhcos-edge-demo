@@ -1,9 +1,11 @@
-RHCOS for Edge Image Builder demo
+RHEL for Edge Image Builder demo
 ====
 
-Red Hat Enterprise Linux CoreOS (RHCOS) represents the next generation of single-purpose container operating system technology by providing the quality standards of Red Hat Enterprise Linux (RHEL) with automated, remote upgrade features. In other words, RHCOS is a immutable operating system from Red Hat, developed as an Openshift component.
+[Red Hat Enterprise Linux (RHEL) for Edge](https://www.redhat.com/en/technologies/linux-platforms/enterprise-linux/edge-computing) puts a consistent layer on inconsistent edge environments, enabling you to confidently scale edge workloads with reliable updates and intelligent rollbacks. Like [RHCOS](https://docs.openshift.com/container-platform/4.11/architecture/architecture-rhcos.html), it is based on [ostree](https://github.com/ostreedev/ostree) which provides easy (and small in size) updates, rollbacks and background staging of upgrades.
 
-Next, we will see how you customize the installation (and installed) image.
+Using Image Builder, IT teams can quickly create, deploy, and easily maintain custom edge-optimized OS images over the life of the system. Image Builder is provided by Red Hat Enterprise Linux and contains everything needed to run edge workloads in specific places. These images can be customized for unique edge workloads, helping keep edge deployments consistent, scalable, more secure, and compliant.
+
+In this demo, we will see how we can customize the installation (and installed) image in order to provide wifi functionality to the deployed system.
 
 Requirements (host preparation)
 ---
@@ -13,6 +15,8 @@ We will need a development host, where image builder will run:
   * at least two core CPU
   * 4GB memory
   * 20GB available space on `/var` mountpoint
+
+This can easily be a dedicated virtual machine.
 
 On the host (we'll call it `image-builder` from now on), you must have the following packages installed:
 
