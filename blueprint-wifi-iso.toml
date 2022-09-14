@@ -1,0 +1,7 @@
+name = "wifi-iso"
+description = "Wireless enabled RHCOS and user customization"
+version = "0.0.1"
+modules = []
+groups = []
+distro = ""
+
