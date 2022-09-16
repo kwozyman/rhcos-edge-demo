@@ -1,0 +1,10 @@
+digraph {
+    rankdir = LR;
+    rotate = 90;
+    osbuilder [ label="OS Builder" ];
+    container [ label="Edge Container"];
+    iso [ label = "Install ISO"];
+    osbuilder -> container;
+    osbuilder -> iso;
+    container -> iso;
+}

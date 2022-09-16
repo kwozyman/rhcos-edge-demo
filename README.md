@@ -123,8 +123,25 @@ With the Edge container running, we can now generate the actual installer `.iso`
 $ composer-cli compose start-ostree --ref rhel/9/x86_64/edge --url http://localhost:8080/repo wifi-iso edge-installer
 ```
 
-Please note the above `--ref` which is served by the edge-container we've started earlier. Like for the container, we can check composition status with `composer-cli compose status` and when it's finished, we can download the .iso file:
+Please note the above `--ref` which is served by the edge-container we've started earlier.
+
+```
+  +-----------------------------------------+
+  |                                         v
++------------+     +----------------+     +-------------+
+| OS Builder | --> | Edge Container | --> | Install ISO |
++------------+     +----------------+     +-------------+
+
+Fig. 1 - Image generation dependencies
+```
+
+Like for the container, we can check composition status with `composer-cli compose status` and when it's finished, we can download the .iso file:
 
 ```
 $ composer-cli compose image <uid>
 ```
+
+Next steps
+---
+
+Now you can proceed with the installation by using the `.iso` file. Please note this is still using Anaconda (the Red Hat Linux installer) and it is not a direct-to-disk image.
