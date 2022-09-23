@@ -45,7 +45,7 @@ distro = ""
 
 [[packages]]
 name = "NetworkManager-wifi"
-version = "*"
+version = "1.35.*"
 
 [[customizations.user]]
 name = "kwozyman"
@@ -70,7 +70,7 @@ $ composer-cli blueprints list
 wifi-enabled
 ```
 
-In order to pull the NetworkManager component for configuring wireless NICs, we are including package `NetworkManager-wifi`, with it's latest (`*`) version. This, of course, pulls a lot of dependencies with all the kernel drivers and firmware packages needed. To see the complete list, you can use the `depsolve` command:
+In order to pull the NetworkManager component for configuring wireless NICs, we are including package `NetworkManager-wifi`, with it's 1.35 (`1.35.*`) version. This, of course, pulls a lot of dependencies with all the kernel drivers and firmware packages needed. To see the complete list, you can use the `depsolve` command:
 
 ```
 $ composer-cli blueprints depsolve wifi-container
@@ -141,7 +141,105 @@ Like for the container, we can check composition status with `composer-cli compo
 $ composer-cli compose image <uid>
 ```
 
-Next steps
+Deployment
 ---
 
-Now you can proceed with the installation by using the `.iso` file. Please note this is still using Anaconda (the Red Hat Linux installer) and it is not a direct-to-disk image.
+Now you can proceed with the installation by using the `.iso` file. Please note this is still using Anaconda (the Red Hat Linux installer) and it is not a direct-to-disk image. A requirement for booting this iso is EFI support. for example, in order to deploy in a virtual machine with libvirt (note the `--boot` parameter):
+
+```
+virt-install --boot uefi \
+--name VM_NAME --memory 2048 --vcpus 2 
+--disk path=diskfile.qcow2 --cdrom /var/lib/libvirt/images/UUID-installer.iso \
+--os-variant rhel9.0
+```
+
+According to what customizations are included in the blueprint, you will be presented with the remainder of sections in the installer. In our example, because we've included custom packages already, there is no software selection option in the installer.
+
+After installation is complete, you will be presented with a RHEL for Edge system based on the blueprint.
+
+Updates/Upgrades
+---
+
+There are two important aspects to take into consideration regarding updates:
+
+1. the deployed system uses a reference pointing to a local path. This is in order to keep the installation self-contained to the setup disk;
+2. upgraded images must be rebuilt by the administrator
+
+In order to add the proper repository on the deployed host (`ostree remote delete` and `ostree remote add` are the important commands):
+
+```
+$ sudo ostree remote list
+rhel
+$ sudo ostree remote show-url rhel
+file:///run/install/repo/ostree/repo
+
+$ sudo ostree remote delete rhel
+$ sudo ostree remote add --no-gpg-verify --no-sign-verify rhel-edge http://192.168.122.228:8080/repo
+
+$ sudo ostree remote show-url rhel-web
+http://192.168.122.228:8080/repo
+```
+
+Please note that in our example above, `192.168.122.228` is the image builder ip address (or wherever the edge-container image is running). Of course, firewall must be open for port 8080 on `image-builder`.
+
+As the ostree repository is unchanged since the iso generation, there will be no updates available:
+
+```
+$ sudo rpm-ostree upgrade --check
+1 metadata, 0 content objects fetched; 153 B transferred in 0 seconds; 0 bytes content written
+No updates available.
+```
+
+In order to update the edge container image, we can update the `blueprint-wifi-container.toml` file by changing the package version to the latest:
+
+```
+[[packages]]
+name = "NetworkManager-wifi"
+version = "*"
+```
+
+and the uploading it from the `image-builder` host:
+
+```
+$ composer-cli blueprints push blueprint-wifi-container.toml
+$ composer-cli blueprints show wifi-container
+name = "wifi-container"
+description = "Wireless enabled RHCOS and user customization"
+version = "0.0.2"
+modules = []
+groups = []
+distro = ""
+
+[[packages]]
+name = "NetworkManager-wifi"
+version = "*"
+
+[customizations]
+
+[[customizations.user]]
+name = "kwozyman"
+description = "User Kwozy"
+password = "$6$ZRlM4KS1CfCRIC09$S/FhlIj3zD6mFsFX.IlCdZfVTuU2AstJxCAV4wTCyuhjGaBlNw.i7BHRUQ1Woh2P0uRnHPfajgHSvYuNPy01F0"
+key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMPkccS+SKCZEWGJzH7ew0eNPItvqeGFpOhZprmL9owO fortress_of_solitude"
+home = "/home/kwozyman/"
+shell = "/usr/bin/bash"
+groups = ["users", "wheel"]
+```
+
+Please note the `version` field is automatically updated to the next version, even though we have not explicitely changed it in the pushed blueprint file. We can now regenerate the edge container, like we did before the iso build:
+
+```
+$ composer-cli compose start wifi-container edge-container
+$ podman load -i <tar-file>
+$ podman tag <id-returned-by-podman-load> localhost/edge-container
+$ podman run --rm --detach --name edge-container --publish 8080:8080 localhost/edge-container
+```
+
+Please make sure the previous container is stopped before starting the new one.
+
+
+Moving back to the edge host, we should be able to upgrade now:
+
+```
+$ rpm-ostree upgrade
+```
