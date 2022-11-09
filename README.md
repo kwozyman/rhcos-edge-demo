@@ -57,6 +57,8 @@ shell = "/usr/bin/bash"
 groups = ["users", "wheel"]
 ```
 
+If needed, we can modify the values of `password` (e.g. `openssl passwd -6 <password>`) and `key`, and optionally other fields of `[[customizations.user]]`. They will be used to login to machines booted from the resulting image.
+
 After creating the above file (`blueprint-wifi-container.toml`), we can push it to the Image Builder:
 
 ```
