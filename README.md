@@ -3,7 +3,7 @@ RHEL for Edge Image Builder demo
 
 [Red Hat Enterprise Linux (RHEL) for Edge](https://www.redhat.com/en/technologies/linux-platforms/enterprise-linux/edge-computing) puts a consistent layer on inconsistent edge environments, enabling you to confidently scale edge workloads with reliable updates and intelligent rollbacks. Like [RHCOS](https://docs.openshift.com/container-platform/4.11/architecture/architecture-rhcos.html), it is based on [ostree](https://github.com/ostreedev/ostree) which provides easy (and small in size) updates, rollbacks and background staging of upgrades.
 
-Using Image Builder, IT teams can quickly create, deploy, and easily maintain custom edge-optimized OS images over the life of the system. Image Builder is provided by Red Hat Enterprise Linux and contains everything needed to run edge workloads in specific places. These images can be customized for unique edge workloads, helping keep edge deployments consistent, scalable, more secure, and compliant.
+Using [Image Builder](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9/html/composing_a_customized_rhel_system_image/index), IT teams can quickly create, deploy, and easily maintain custom edge-optimized OS images over the life of the system. Image Builder is provided by Red Hat Enterprise Linux and contains everything needed to run edge workloads in specific places. These images can be customized for unique edge workloads, helping keep edge deployments consistent, scalable, more secure, and compliant.
 
 In this demo, we will see how we can customize the installation (and installed) image in order to provide wifi functionality to the deployed system.
 
@@ -24,7 +24,7 @@ On the host (we'll call it `image-builder` from now on), you must have the follo
 $ dnf install -y osbuild-composer composer-cli
 ```
 
-Also, `obuild-composer` service must be started and enabled:
+Also, `osbuild-composer` service must be started and enabled:
 
 ```
 $ systemctl enable --now osbuild-composer.socket
@@ -45,7 +45,7 @@ distro = ""
 
 [[packages]]
 name = "NetworkManager-wifi"
-version = "1.35.*"
+version = "1.36.*"
 
 [[customizations.user]]
 name = "kwozyman"
@@ -57,7 +57,9 @@ shell = "/usr/bin/bash"
 groups = ["users", "wheel"]
 ```
 
-After creating the above file (`wifi-enabled-blueprint.toml`), we can push it to the Image Builder:
+If needed, we can modify the values of `password` (e.g. `openssl passwd -6 <password>`) and `key`, and optionally other fields of `[[customizations.user]]`. They will be used to login to machines booted from the resulting image. The full list of possible image customization can be found [here](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9/html/composing_a_customized_rhel_system_image/creating-system-images-with-composer-command-line-interface_composing-a-customized-rhel-system-image#image-customizations_creating-system-images-with-composer-command-line-interface).
+
+After creating the above file (`blueprint-wifi-container.toml`), we can push it to the Image Builder:
 
 ```
 $ composer-cli blueprints push blueprint-wifi-container.toml
@@ -67,14 +69,16 @@ $ composer-cli blueprints push blueprint-wifi-container.toml
 
 ```
 $ composer-cli blueprints list
-wifi-enabled
+wifi-container
 ```
 
-In order to pull the NetworkManager component for configuring wireless NICs, we are including package `NetworkManager-wifi`, with it's 1.35 (`1.35.*`) version. This, of course, pulls a lot of dependencies with all the kernel drivers and firmware packages needed. To see the complete list, you can use the `depsolve` command:
+In order to pull the NetworkManager component for configuring wireless NICs, we are including package `NetworkManager-wifi`, with it's 1.36 (`1.36.*`) version at the time of writing. This, of course, pulls a lot of dependencies with all the kernel drivers and firmware packages needed. To see the complete list, you can use the `depsolve` command:
 
 ```
 $ composer-cli blueprints depsolve wifi-container
 ```
+
+[Managing repositories](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9/html/composing_a_customized_rhel_system_image/managing-repositories_composing-a-customized-rhel-system-image) explains how to add packages from a custom repository.
 
 Container for Edge creation
 ---
@@ -85,7 +89,14 @@ In order for the installer image to be built, we need a http server with the bas
 $ composer-cli compose start wifi-container edge-container
 ```
 
-The above command will take some time and we can follow the progress with `composer-cli compose status`. After it's finished, we can download the container image by using the id listed in `status`:
+The above command will take some time and we can follow the progress with `composer-cli compose status`:
+
+```
+$ composer-cli compose status
+3f3c2398-8de6-483f-a784-ff0b49d26747 RUNNING  Tue Nov 8 20:41:53 2022 wifi-container  0.0.1 edge-container
+```
+
+After it's finished, we can download the container image by using the id listed in the first column of `status` output:
 
 ```
 $ composer-cli compose image <uid>
@@ -102,7 +113,7 @@ $ podman run --rm --detach --name edge-container --publish 8080:8080 localhost/e
 Edge installer image creation
 ---
 
-We will need a new blueprint in order to generate the installation iso:
+We will need a new blueprint (e.g. `blueprint-wifi-iso.toml`) in order to generate the installation iso:
 
 ```
 name = "wifi-iso"
@@ -115,7 +126,7 @@ distro = ""
 
 Please take note as to the lack of customizations. Including customizations here would overlap with the first blueprint and installer generation would not be possible.
 
-As with the first blueprint, we need to `composer-cli blueprint push blueprint-wifi-iso.toml`.
+As with the first blueprint, we need to `composer-cli blueprints push blueprint-wifi-iso.toml`.
 
 With the Edge container running, we can now generate the actual installer `.iso` for our customized RHCOS image:
 
@@ -144,13 +155,19 @@ $ composer-cli compose image <uid>
 Deployment
 ---
 
-Now you can proceed with the installation by using the `.iso` file. Please note this is still using Anaconda (the Red Hat Linux installer) and it is not a direct-to-disk image. A requirement for booting this iso is EFI support. for example, in order to deploy in a virtual machine with libvirt (note the `--boot` parameter):
+Now you can proceed with the installation by using the `.iso` file outside of the `image-builder` VM. Please note this is still using Anaconda (the Red Hat Linux installer) and it is not a direct-to-disk image. A requirement for booting this iso is EFI support. For example, in order to deploy in a virtual machine with libvirt (note the `--boot` parameter):
 
 ```
 virt-install --boot uefi \
---name VM_NAME --memory 2048 --vcpus 2 
---disk path=diskfile.qcow2 --cdrom /var/lib/libvirt/images/UUID-installer.iso \
+--name VM_NAME --memory 2048 --vcpus 2 \
+--disk size=20,path=/path/to/diskfile.qcow2 --cdrom /path/to/UUID-installer.iso \
 --os-variant rhel9.0
+```
+
+Install `virt-viewer` on the host machine to be automatically connected to the guest display:
+
+```
+dnf install -y virt-viewer
 ```
 
 According to what customizations are included in the blueprint, you will be presented with the remainder of sections in the installer. In our example, because we've included custom packages already, there is no software selection option in the installer.
