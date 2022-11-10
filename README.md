@@ -3,7 +3,7 @@ RHEL for Edge Image Builder demo
 
 [Red Hat Enterprise Linux (RHEL) for Edge](https://www.redhat.com/en/technologies/linux-platforms/enterprise-linux/edge-computing) puts a consistent layer on inconsistent edge environments, enabling you to confidently scale edge workloads with reliable updates and intelligent rollbacks. Like [RHCOS](https://docs.openshift.com/container-platform/4.11/architecture/architecture-rhcos.html), it is based on [ostree](https://github.com/ostreedev/ostree) which provides easy (and small in size) updates, rollbacks and background staging of upgrades.
 
-Using Image Builder, IT teams can quickly create, deploy, and easily maintain custom edge-optimized OS images over the life of the system. Image Builder is provided by Red Hat Enterprise Linux and contains everything needed to run edge workloads in specific places. These images can be customized for unique edge workloads, helping keep edge deployments consistent, scalable, more secure, and compliant.
+Using [Image Builder](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9/html/composing_a_customized_rhel_system_image/index), IT teams can quickly create, deploy, and easily maintain custom edge-optimized OS images over the life of the system. Image Builder is provided by Red Hat Enterprise Linux and contains everything needed to run edge workloads in specific places. These images can be customized for unique edge workloads, helping keep edge deployments consistent, scalable, more secure, and compliant.
 
 In this demo, we will see how we can customize the installation (and installed) image in order to provide wifi functionality to the deployed system.
 
@@ -57,7 +57,7 @@ shell = "/usr/bin/bash"
 groups = ["users", "wheel"]
 ```
 
-If needed, we can modify the values of `password` (e.g. `openssl passwd -6 <password>`) and `key`, and optionally other fields of `[[customizations.user]]`. They will be used to login to machines booted from the resulting image.
+If needed, we can modify the values of `password` (e.g. `openssl passwd -6 <password>`) and `key`, and optionally other fields of `[[customizations.user]]`. They will be used to login to machines booted from the resulting image. The full list of possible image customization can be found [here](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9/html/composing_a_customized_rhel_system_image/creating-system-images-with-composer-command-line-interface_composing-a-customized-rhel-system-image#image-customizations_creating-system-images-with-composer-command-line-interface).
 
 After creating the above file (`blueprint-wifi-container.toml`), we can push it to the Image Builder:
 
@@ -72,11 +72,13 @@ $ composer-cli blueprints list
 wifi-container
 ```
 
-In order to pull the NetworkManager component for configuring wireless NICs, we are including package `NetworkManager-wifi`, with it's 1.36 (`1.36.*`) version. This, of course, pulls a lot of dependencies with all the kernel drivers and firmware packages needed. To see the complete list, you can use the `depsolve` command:
+In order to pull the NetworkManager component for configuring wireless NICs, we are including package `NetworkManager-wifi`, with it's 1.36 (`1.36.*`) version at the time of writing. This, of course, pulls a lot of dependencies with all the kernel drivers and firmware packages needed. To see the complete list, you can use the `depsolve` command:
 
 ```
 $ composer-cli blueprints depsolve wifi-container
 ```
+
+[Managing repositories](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9/html/composing_a_customized_rhel_system_image/managing-repositories_composing-a-customized-rhel-system-image) explains how to add packages from a custom repository.
 
 Container for Edge creation
 ---
