@@ -252,7 +252,6 @@ $ podman run --rm --detach --name edge-container --publish 8080:8080 localhost/e
 
 Please make sure the previous container is stopped before starting the new one.
 
-
 Moving back to the edge host, we should be able to upgrade now:
 
 ```
@@ -315,4 +314,3 @@ journalctl -t osbuild-composer
  ```
  journalctl -t osbuild-worker
  ```
-
