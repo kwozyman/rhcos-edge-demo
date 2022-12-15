@@ -1,0 +1,19 @@
+name = "r4e-cnt"
+description = "Generic RHEL for Edge container blueprint"
+version = "0.0.1"
+
+[[packages]]
+name = "subscription-manager"
+version = "*"
+
+groups = []
+distro = ""
+
+[[customizations.user]]
+name = "kwozyman"
+description = "User Kwozy"
+password = "$6$ZRlM4KS1CfCRIC09$S/FhlIj3zD6mFsFX.IlCdZfVTuU2AstJxCAV4wTCyuhjGaBlNw.i7BHRUQ1Woh2P0uRnHPfajgHSvYuNPy01F0"
+key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMPkccS+SKCZEWGJzH7ew0eNPItvqeGFpOhZprmL9owO fortress_of_solitude"
+home = "/home/kwozyman/"
+shell = "/usr/bin/bash"
+groups = ["users", "wheel"]
