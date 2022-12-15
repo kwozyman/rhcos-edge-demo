@@ -78,8 +78,6 @@ In order to pull the NetworkManager component for configuring wireless NICs, we 
 $ composer-cli blueprints depsolve wifi-container
 ```
 
-[Managing repositories](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9/html/composing_a_customized_rhel_system_image/managing-repositories_composing-a-customized-rhel-system-image) explains how to add packages from a custom repository.
-
 Container for Edge creation
 ---
 
@@ -254,9 +252,65 @@ $ podman run --rm --detach --name edge-container --publish 8080:8080 localhost/e
 
 Please make sure the previous container is stopped before starting the new one.
 
-
 Moving back to the edge host, we should be able to upgrade now:
 
 ```
 $ rpm-ostree upgrade
 ```
+
+Custom packages
+---
+
+[Managing repositories](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9/html/composing_a_customized_rhel_system_image/managing-repositories_composing-a-customized-rhel-system-image) explains how to use custom system repositories.
+
+If we wanted to add a package from a custom or 3rd party repository, we could do this as follows.
+
+Let's say we want our image to include the Intel(R) distribution of OpenVINO:
+
+```
+[[packages]]
+name = "openvino"
+version = "*"
+```
+
+First, create a TOML file, e.g. `openvino-repo.toml`:
+
+```
+id = "OpenVINO"
+name = "Intel(R) Distribution of OpenVINO"
+type = "yum-baseurl"
+url = "https://yum.repos.intel.com/openvino/2022"
+gpgkey = "https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+check_gpg = true
+check_ssl = true
+system = false
+```
+
+Then, add the repository to the image composer sources:
+
+```
+composer-cli sources add openvino-repo.toml
+```
+
+Troubleshooting
+---
+
+Useful commands for troubleshooting image composes:
+
+* Show the log of a compose:
+
+```
+composer-cli compose log <id>
+```
+
+* View diagnostics messages produced by the composer:
+
+```
+journalctl -t osbuild-composer
+```
+
+* View diagnostics messages produced by the worker:
+
+ ```
+ journalctl -t osbuild-worker
+ ```
