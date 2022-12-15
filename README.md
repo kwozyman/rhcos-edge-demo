@@ -314,3 +314,181 @@ journalctl -t osbuild-composer
  ```
  journalctl -t osbuild-worker
  ```
+
+Distributing the OS as container images
+---
+
+The whole ostree image can be [distributed as a container image file](https://coreos.github.io/rpm-ostree/container/) as well!
+
+The following instructions take place in the `containers` directory of this repo:
+
+```
+$ cd containers
+```
+
+For convenience, we're using a different blueprint, but the previous blueprint can be easily used. We are simply adding the `subscription-manager` package in the new one in order to manage Red Hat subscriptions (to install packages).
+
+```
+$ composer-cli blueprint push blueprint.toml
+```
+
+Like we did earlier, we're starting a new image compose using `compose-cli`, this time using the `edge-commit` target:
+
+```
+$ composer-cli compose start-ostree r4e-cnt
+$ composer-cli compose status
+```
+
+After a couple minutes, our commit is ready to download:
+
+```
+$ composer-cli compose status
+...
+de4a9fa0-b48e-40ae-8d3c-bf5b45434629 FINISHED Wed Dec 14 15:11:50 2022 r4e-cnt         0.0.2 edge-commit
+...
+$ composer-cli compose image de4a9fa0-b48e-40ae-8d3c-bf5b45434629
+de4a9fa0-b48e-40ae-8d3c-bf5b45434629-commit.tar
+```
+
+Please note that the resulting file is a tar archive.
+
+Next, we need to extract the ostree commit. Let's use a directory called `ostree-commit` for that (of course, you will need to use the downloaded archive from earlier):
+
+```
+$ mkdir ostree-commit
+$ tar xvf de4a9fa0-b48e-40ae-8d3c-bf5b45434629-commit.tar -C ostree-commit
+```
+
+We now have all the data required to construct the container:
+
+```
+$ ostree container encapsulate --repo=ostree-commit/repo rhel/9/x86_64/edge oci-archive:ostree-container.tar
+```
+
+The result is `ostree-container.tar`, which can be easily imported to podman and then sent to a image registry service (I'm using my private quay registry as the example below):
+
+```
+$ podman load -i ostree-container.tar
+(...)
+Loaded image: sha256:e19b5e0bc79d9f34abbedbbf651ed5dc32453fd3550d38123b922a7058362521
+$ podman tag sha256:e19b5e0bc79d9f34abbedbbf651ed5dc32453fd3550d38123b922a7058362521 quay.io/kwozyman/r4e
+$ podman push quay.io/kwozyman/r4e
+```
+
+*On an already deployed ostree host*, it is possible to rebase to using the container image:
+
+```
+$ rpm-ostree rebase ostree-unverified-registry:quay.io/kwozyman/r4e --experimental
+$ systemctl reboot
+$ rpm-ostree status
+State: idle
+Deployments:
+● ostree-unverified-registry:quay.io/kwozyman/r4e
+                   Digest: sha256:5a2652635ca393956afbb47afb66d13ad328bcfe6afa6bde6f1da840cbc5ccf1
+                Timestamp: 2022-12-15T13:21:36Z
+```
+
+After a rebase, all further rpm-ostree operations work as you’d expect. For example, rpm-ostree upgrade will look for a new container version.
+
+One can even layer packages and files using the Dockerfile syntax:
+
+```
+$ cat Containerfile
+FROM quay.io/kwozyman/r4e:latest
+ADD blueprint.toml /etc/initial-blueprint.toml
+$ podman build . -t quay.io/kwozyman/r4e:changed
+$ podman push quay.io/kwozyman/r4e:changed
+```
+
+After the container image is in a available image registry service, we can rebase on the new container:
+
+```
+$ rpm-ostree rebase ostree-unverified-registry:quay.io/kwozyman/r4e:changed --experimental
+Pulling manifest: ostree-unverified-image:docker://quay.io/kwozyman/r4e:changed
+Importing: ostree-unverified-image:docker://quay.io/kwozyman/r4e:changed (digest: sha256:4f12831a27830e139e2709c5a52027492b8dfd5f8b17e311f7b9dc3815faa3e4)
+ostree chunk layers stored: 1 needed: 0 (0 bytes)
+custom layers stored: 1 needed: 1 (628 bytes)
+Fetching layer sha256:0386f043c153 (628 bytes)
+Fetched layer sha256:0386f043c153
+Checking out tree d580831... done
+Enabled rpm-md repositories: rhel-9-for-x86_64-baseos-rpms rhel-9-for-x86_64-appstream-rpms
+Importing rpm-md... done
+rpm-md repo 'rhel-9-for-x86_64-baseos-rpms' (cached); generated: 2022-12-05T16:22:43Z solvables: 3061
+rpm-md repo 'rhel-9-for-x86_64-appstream-rpms' (cached); generated: 2022-12-14T09:02:08Z solvables: 10460
+Resolving dependencies... done
+Checking out packages... done
+Running pre scripts... done
+Running post scripts... done
+Running posttrans scripts... done
+Writing rpmdb... done
+Writing OSTree commit... done
+Staging deployment... done
+Freed: 40.3 MB (pkgcache branches: 0)
+Changes queued for next boot. Run "systemctl reboot" to start a reboot
+$ systemctl reboot
+```
+
+After the system reboot, we can see our changes:
+
+```
+$ rpm-ostree status
+State: idle
+Deployments:
+● ostree-unverified-registry:quay.io/kwozyman/r4e:changed
+                   Digest: sha256:4f12831a27830e139e2709c5a52027492b8dfd5f8b17e311f7b9dc3815faa3e4
+                Timestamp: 2022-12-15T14:17:22Z
+
+  ostree-unverified-registry:quay.io/kwozyman/r4e
+                   Digest: sha256:5a2652635ca393956afbb47afb66d13ad328bcfe6afa6bde6f1da840cbc5ccf1
+                Timestamp: 2022-12-15T13:21:36Z
+$ ls -lah /etc/initial-blueprint.toml
+-rw-r--r--. 1 root root 553 Dec 15 09:17 /etc/initial-blueprint.toml
+```
+
+In order to demonstrate the update process, we can change the container once more:
+
+```
+$ cat Containerfile
+FROM quay.io/kwozyman/r4e:latest
+ADD blueprint.toml /etc/initial-blueprint.toml
+RUN echo 'Hello Edge!' > /etc/motd
+$ podman build . -t quay.io/kwozyman/r4e:changed && podman push quay.io/kwozyman/r4e:changed
+```
+
+After the push, we can try to upgrade our system:
+
+```
+$ sudo rpm-ostree upgrade
+Pulling manifest: ostree-unverified-image:docker://quay.io/kwozyman/r4e:changed
+Importing: ostree-unverified-image:docker://quay.io/kwozyman/r4e:changed (digest: sha256:b88f193482b86141455c7307bdb53a07c2d037571c8f44794b3392be894bd1cc)
+ostree chunk layers stored: 1 needed: 0 (0 bytes)
+custom layers stored: 2 needed: 1 (341 bytes)
+Fetching layer sha256:84da2894fdca (341 bytes)
+Fetched layer sha256:84da2894fdca
+Checking out tree 9fc2949... done
+Enabled rpm-md repositories: rhel-9-for-x86_64-baseos-rpms rhel-9-for-x86_64-appstream-rpms
+Importing rpm-md... done
+rpm-md repo 'rhel-9-for-x86_64-baseos-rpms' (cached); generated: 2022-12-05T16:22:43Z solvables: 3061
+rpm-md repo 'rhel-9-for-x86_64-appstream-rpms' (cached); generated: 2022-12-14T09:02:08Z solvables: 10460
+Resolving dependencies... done
+Checking out packages... done
+Running pre scripts... done
+Running post scripts... done
+Running posttrans scripts... done
+Writing rpmdb... done
+Writing OSTree commit... done
+Staging deployment... done
+Freed: 40.3 MB (pkgcache branches: 0)
+Run "systemctl reboot" to start a reboot
+$ systemctl reboot
+$ rpm-ostree status
+State: idle
+Deployments:
+● ostree-unverified-registry:quay.io/kwozyman/r4e:changed
+                   Digest: sha256:b88f193482b86141455c7307bdb53a07c2d037571c8f44794b3392be894bd1cc
+                Timestamp: 2022-12-15T14:24:03Z
+
+  ostree-unverified-registry:quay.io/kwozyman/r4e:changed
+                   Digest: sha256:b88f193482b86141455c7307bdb53a07c2d037571c8f44794b3392be894bd1cc
+                Timestamp: 2022-12-15T14:17:22Z
+```
